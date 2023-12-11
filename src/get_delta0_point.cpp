@@ -656,7 +656,7 @@ void bfs_shortest_paths(vector<vector<int>>& subG, int source, unordered_set<int
 
 }
 
-void prim_dst(vector<vector<int>>& subG, int source, unordered_set<int>&dest, unordered_set<int>&points_in_paths){
+void prim_mst(vector<vector<int>>& subG, int source, unordered_set<int>&dest, unordered_set<int>&points_in_paths){
     // the indexes of the subG is the indexes in gt_list
     // we collect the points in the shortest paths, without the terminals themselves
     int n = subG.size();
@@ -670,9 +670,12 @@ void prim_dst(vector<vector<int>>& subG, int source, unordered_set<int>&dest, un
 
     dist[source] = 0;
     visited.insert(source);
+
+    vector<vector<int>> treeG(n, vector<int>());
+
     for (auto &v : subG[source]) {
         dist[v] = 1;
-        prev[v] = source;
+        treeG[source].push_back(v);
         next.insert(v);
     }
 
@@ -691,19 +694,13 @@ void prim_dst(vector<vector<int>>& subG, int source, unordered_set<int>&dest, un
         for (auto& v: subG[u]) {
             if (!visited.count(v)) {
                 dist[v] = 1;
-                prev[v] = u;  // Update the previous node for v
+                treeG[u].push_back(v);
                 next.insert(v);
             }
         }
     }
 
-    for (int terminal : dest) {
-        int v = prev[terminal];
-        while (v != -1) {
-            points_in_paths.insert(v);
-            v = prev[v];
-        }
-    }
+    bfs_shortest_paths(treeG, source, dest, points_in_paths);
 }
 
 int get_me_exhausted_from_delta0_pointt_recall_prob_atom(vector<vector<int>>& G, int k, unsigned* gt_list, int delta0_point,
@@ -776,10 +773,10 @@ void get_me_exhausted_from_delta0_pointt_recall_prob(vector<vector<int>>& G, int
 int main(int argc, char * argv[]) {
 
     int method = 0; // 0: kgraph 1: hnsw 2: nsg
-    int purpose = 1; // 0: get delta0 1: get me_exhausted
-    string data_str = "gauss100";   // dataset name
+    int purpose = 2; // 0: get delta0 1: get me_exhausted
+    string data_str = "deep";   // dataset name
     int data_type = 0; // 0 for float, 1 for uint8, 2 for int8
-    int subk=50;
+    int subk = 50;
     float recall = 0.90;
     float prob = 0.96;
     int recall_target = ceil(recall * subk);
