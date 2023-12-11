@@ -727,7 +727,7 @@ int get_me_exhausted_from_delta0_point_recall_prob_atom(vector<vector<int>>& G, 
     for(auto& p: reachable_pairs){
         auto& src = p.first;
         auto& dest = p.second;
-        bfs_shortest_paths(subgraph, src, dest, points_in_paths);
+        prim_mst(subgraph, src, dest, points_in_paths);
     }
 
     unordered_set<int>me_exhausted;
@@ -795,7 +795,7 @@ int get_me_from_delta0_point_recall_prob_atom(vector<vector<int>>& G, int k, uns
     for(auto& p: reachable_pairs){
         auto& src = p.first;
         auto& dest = p.second;
-        bfs_shortest_paths(subgraph, src, dest, points_in_paths);
+        prim_mst(subgraph, src, dest, points_in_paths);
     }
 
     // The terminals themselves are also in ME_exhausted
@@ -832,12 +832,12 @@ void get_me_from_delta0_point_recall_prob(vector<vector<int>>& G, int k, Matrix<
 
 int main(int argc, char * argv[]) {
 
-    int method = 0; // 0: kgraph 1: hnsw 2: nsg
-    int purpose = 1; // 0: get delta0^p@Acc 1: get me_exhausted 2: get me^p_delta_0@Acc
-    string data_str = "gauss100";   // dataset name
+    int method = 1; // 0: kgraph 1: hnsw 2: nsg
+    int purpose = 2; // 0: get delta0^p@Acc 1: get me_exhausted 2: get me^p_delta_0@Acc
+    string data_str = "deep";   // dataset name
     int data_type = 0; // 0 for float, 1 for uint8, 2 for int8
-    int subk=50;
-    float recall = 0.94;
+    int subk = 50;
+    float recall = 0.90;
     float prob = 0.96;
     int recall_target = ceil(recall * subk);
     int prob_target = ceil(prob * subk);
@@ -933,6 +933,12 @@ int main(int argc, char * argv[]) {
             cerr << "result path: "<< result_path_str << endl;
             auto delta0_point = read_ibin_simple(delta0_path_str.c_str());
             get_me_exhausted_from_delta0_point_recall_prob(*hnsw, subk, GT, *delta0_point, recall_target, prob_target, res);
+        }else if (purpose == 2){
+            result_path_str = result_prefix_str + "_me_forall_point_recall" + to_string(recall).substr(0, 4) + "_prob" + to_string(prob).substr(0, 4)
+            + "_ef" + ef_str + "_M" + to_string(M) + ".ibin_hnsw" + index_postfix + shuf_postfix + query_postfix;
+            cerr << "result path: "<< result_path_str << endl;
+            auto delta0_point = read_ibin_simple(delta0_path_str.c_str());
+            get_me_from_delta0_point_recall_prob(*hnsw, subk, GT, *delta0_point, recall_target, prob_target, res);
         }
     }else if(method == 2){
         // nsg
