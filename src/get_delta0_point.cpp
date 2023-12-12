@@ -660,7 +660,6 @@ void prim_mst(vector<vector<int>>& subG, int source, unordered_set<int>&dest, un
     // the indexes of the subG is the indexes in gt_list
     // we collect the points in the shortest paths, without the terminals themselves
     int n = subG.size();
-    vector<int> dist(n, INT_MAX);
     vector<int> prev(n, -1);  // Add a vector to keep track of the previous node in the shortest path
 
     unordered_set<int> visited, next; // visited and next step visit nodes
@@ -668,22 +667,22 @@ void prim_mst(vector<vector<int>>& subG, int source, unordered_set<int>&dest, un
     int finish_size = 0;
     int dest_size = dest.size();
 
-    dist[source] = 0;
     visited.insert(source);
 
     vector<vector<int>> treeG(n, vector<int>());
 
     for (auto &v : subG[source]) {
-        dist[v] = 1;
         treeG[source].push_back(v);
+        prev[v] = source;
         next.insert(v);
     }
 
-    while (dest_size < finish_size) {
+    while (finish_size < dest_size) {
         if (next.empty()) {
             break;
         }
         auto u = *next.begin();
+        next.erase(u);
         if (visited.count(u) > 0) {
             continue;
         }
@@ -693,8 +692,8 @@ void prim_mst(vector<vector<int>>& subG, int source, unordered_set<int>&dest, un
         }
         for (auto& v: subG[u]) {
             if (!visited.count(v)) {
-                dist[v] = 1;
                 treeG[u].push_back(v);
+                prev[v] = u;
                 next.insert(v);
             }
         }
@@ -727,7 +726,7 @@ int get_me_exhausted_from_delta0_point_recall_prob_atom(vector<vector<int>>& G, 
     for(auto& p: reachable_pairs){
         auto& src = p.first;
         auto& dest = p.second;
-        prim_mst(subgraph, src, dest, points_in_paths);
+        bfs_shortest_paths(subgraph, src, dest, points_in_paths);
     }
 
     unordered_set<int>me_exhausted;
@@ -831,13 +830,12 @@ void get_me_from_delta0_point_recall_prob(vector<vector<int>>& G, int k, Matrix<
 
 
 int main(int argc, char * argv[]) {
-
     int method = 1; // 0: kgraph 1: hnsw 2: nsg
-    int purpose = 2; // 0: get delta0^p@Acc 1: get me_exhausted 2: get me^p_delta_0@Acc
+    int purpose = 1; // 0: get delta0^p@Acc 1: get me_exhausted 2: get me^p_delta_0@Acc
     string data_str = "deep";   // dataset name
     int data_type = 0; // 0 for float, 1 for uint8, 2 for int8
     int subk = 50;
-    float recall = 0.90;
+    float recall = 0.98;
     float prob = 0.96;
     int recall_target = ceil(recall * subk);
     int prob_target = ceil(prob * subk);
