@@ -1,6 +1,7 @@
 import numpy as np
 import faiss
 import math
+import os
 from tqdm import tqdm
 import time
 import pickle
@@ -15,6 +16,7 @@ import matplotlib.pyplot as plt
 from pprint import pprint
 from requests import delete
 from scipy.spatial import distance as p_dist_func
+import struct
 
 plt.rcParams['mathtext.fontset'] = "stix"
 plt.rcParams['font.family'] = 'calibri'
@@ -39,7 +41,7 @@ np.set_printoptions(precision=5)
 def read_fvecs(filename, c_contiguous=True):
     print(f"Reading File - {filename}", end =':')
     # fv = np.fromfile(filename, dtype=np.float32)
-    fv = np.memmap(filename, dtype='float32', mode='r+')
+    fv = np.memmap(filename, dtype='float32', mode='r')
     if fv.size == 0:
         return np.zeros((0, 0))
     dim = fv.view(np.int32)[0]
@@ -52,6 +54,18 @@ def read_fvecs(filename, c_contiguous=True):
         fv = fv.copy()
     print(fv.shape)
     return fv
+
+def read_fvecs_cnt(filename, num):
+    print(f"Reading File - {filename}, with {num} vectors", end=":")
+    fv = np.fromfile(filename, dtype=np.int32, count=1)
+    dim = fv.view(np.int32)[0]
+    fv = np.memmap(filename, dtype='float32', mode='r', shape=(num * (dim + 1),))
+    fv = fv.reshape(-1, 1 + dim)
+    fv = fv[:, 1:]
+    print(fv.shape)
+    return fv
+    
+    
 
 def read_ivecs(filename, c_contiguous=True):
     print(f"Reading File - {filename}", end=":")
@@ -66,6 +80,16 @@ def read_ivecs(filename, c_contiguous=True):
     fv = fv[:, 1:]
     if c_contiguous:
         fv = fv.copy()
+    print(fv.shape)
+    return fv
+
+def read_ivecs_cnt(filename, num):
+    print(f"Reading File - {filename}, with {num} vectors", end=":")
+    fv = np.fromfile(filename, dtype=np.int32, count=1)
+    dim = fv.view(np.int32)[0]
+    fv = np.memmap(filename, dtype='int32', mode='r', shape=(num * (dim + 1),))
+    fv = fv.reshape(-1, 1 + dim)
+    fv = fv[:, 1:]
     print(fv.shape)
     return fv
 
@@ -350,6 +374,17 @@ def compute_lengths(X):
     lengths = np.linalg.norm(X_norm, axis=1)
     return lengths  
 
+def transform_kgraph2std(new_path, revG):
+    print(f'write to {new_path}')
+    with open(new_path, 'wb') as f:
+        for i in range(len(revG)):
+            if i % 100000 == 0:
+                print(f'{i}/{len(revG)}')
+            # write binary to file
+            for j in range(len(revG[i])):
+                f.write(struct.pack('<i', revG[i][j]))
+            f.write(struct.pack('<i', -1))
+            
 
 def get_query_length(X, Q):
     mean = np.mean(X, axis=0)
@@ -481,8 +516,6 @@ class IdentPreproc:
     def apply_py(self, x):
         return x
 
-# This is the modified CPU version of compute_GT from Faiss.
-# Performs exhaustive search to find ground truth nearest neighbors.
 def compute_GT_CPU(xb, xq, gt_sl):
     nq_gt, _ = xq.shape
     print("compute GT CPU")
@@ -531,6 +564,7 @@ def compute_GT_CPU(xb, xq, gt_sl):
 
     
     return data_ids, data_dis
+
 
 def compute_GT_CPU_IP(xb_raw, xq_raw, gt_sl):
     
@@ -663,6 +697,17 @@ def read_hnsw_index_aligned(index_path, dim):
         graph.append(neighbors)
     return graph
 
+def shuffled_hnsw_to_standard_form(graph, new2old, M):
+    ret_graph = []
+    # initialize ret_graph with empty lists
+    ret_graph = [[] for i in range(len(graph))]
+    for i in range(len(graph)):
+        if(i % 100000 == 0):
+            print(i)
+        ret_graph[new2old[i]] = np.pad(np.array([ new2old[x] for x in graph[i] ]), (0, M + M - len(graph[i])), constant_values=-1 )
+    return np.array(ret_graph)
+
+
 def read_nsg(filename):
     data = np.memmap(filename, dtype='uint32', mode='r')
     width = int(data[0])
@@ -687,6 +732,29 @@ def read_nsg(filename):
     print(f'node number = {len(graphs)}')
     print(f'max degree = {max_edge}')
     return ep, graphs
+
+def read_mrng(filename):
+    print(f'read mrng from {filename}')
+    data = np.memmap(filename, dtype='uint32', mode='r')
+    data_len = len(data)
+    edge_num = 0
+    cur = 0
+    graphs = []
+    max_edge = 0
+    while cur < data_len:
+        if len(graphs) % 100000 == 0:
+            print(len(graphs))
+        edge_num += data[cur]
+        max_edge = max(max_edge, data[cur])
+        tmp = []
+        for i in range(data[cur]):
+            tmp.append(data[cur + i + 1])
+        cur += data[cur] + 1
+        graphs.append(tmp)
+    print(f'edge number = {edge_num}')
+    print(f'node number = {len(graphs)}')
+    print(f'max degree = {max_edge}')
+    return graphs
 
 def get_outlink_density(indegree, G, npoints, hubs_percent=[0.01,0.1,1,5,10]):
     hubs_percent = np.array(hubs_percent)
@@ -717,6 +785,7 @@ def get_indegree_hist(indegree, dataset, method, log = True, bins=50):
     print(f'save figure to ./figures/{dataset}/{method}-indegree-hist.png')
 
 def get_reversed_graph_list(G):
+    print(f'get reversed graph list')
     ret = []
     for i in G:
         ret.append([])

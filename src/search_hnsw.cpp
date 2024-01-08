@@ -318,6 +318,7 @@ static void test_approx(data_t *massQ, size_t vecsize, size_t qsize, Hierarchica
     long accum_ndc = 0;
     for(int _ = 0; _ < expr_round; ++_){
         for (int i = 0; i < qsize; i++) {
+            // if(i % 100 == 0)    cerr << i << endl;
             #ifdef DEEP_QUERY
             if(i != FOCUS_QUERY)  continue;
             #endif
@@ -339,7 +340,7 @@ static void test_approx(data_t *massQ, size_t vecsize, size_t qsize, Hierarchica
             std::priority_queue<std::pair<dist_t, labeltype >> gt(answers[i]);
             std::priority_queue<std::pair<dist_t, labeltype >> result = appr_alg.searchKnnPlainDEEP_QUERY(massQ + vecdim * i, k, gt);
 #else
-            std::priority_queue<std::pair<dist_t, labeltype >> result = appr_alg.searchKnnPlain(massQ + vecdim * i, k, adaptive);  
+            std::priority_queue<std::pair<dist_t, labeltype >> result = appr_alg.searchKnnPlain(massQ + vecdim * i, k, adaptive );  
 #endif
 #ifndef WIN32
             GetCurTime( &run_end);
@@ -567,8 +568,7 @@ static void test_lb_recall(data_t *massQ, size_t vecsize, size_t qsize, Hierarch
 
 template<typename data_t, typename dist_t>
 static void test_performance(data_t *massQ, size_t vecsize, size_t qsize, HierarchicalNSW<dist_t> &appr_alg, size_t vecdim,
-               vector<std::priority_queue<std::pair<dist_t, labeltype >>> &answers, size_t k, int adaptive) {
-    double target_recall = 0.86;
+               vector<std::priority_queue<std::pair<dist_t, labeltype >>> &answers, size_t k, int adaptive, float target_recall) {
     int lowk = ceil(k * target_recall);
     vector<int>ret(qsize, 0);
 
@@ -584,7 +584,7 @@ static void test_performance(data_t *massQ, size_t vecsize, size_t qsize, Hierar
                 cerr << index << " / " << qsize << endl;
         }
 
-        int lowef = k, highef, curef, tmp, bound = 30000;
+        int lowef = k, highef, curef, tmp, bound = 6000;
         long success = -1;
         Metric metric;
 
@@ -711,16 +711,49 @@ int main(int argc, char * argv[]) {
     //                           1: ADS+       41:LSH+             71: OPQ+ 81:PCA+       TMA optimize (from ADSampling)
     //                                                       62:PQ! 72:OPQ!              QEO optimize (from tau-MNG)
     int method = 0;
-    string data_str = "gauss100";   // dataset name
+    char data_str_char[256];
+    string data_str = "deep";   // dataset name
+    float recall;
+    char recall_char[5], M_char[5], ef_char[5], shuf_char[10];
     int data_type = 0; // 0 for float, 1 for uint8, 2 for int8
-    string M_str ="50"; // 8 for msong,mnist,cifar  48 for nuswide
-    string ef_str = "500"; 
+    int M, ef;
+    string M_str = "16", ef_str = "500", recall_str, shuf_str; 
 
     while(iarg != -1){
-        iarg = getopt_long(argc, argv, "d:", longopts, &ind);
+        iarg = getopt_long(argc, argv, "e:d:r:m:s:", longopts, &ind);
         switch (iarg){
+            case 'e': 
+                if(optarg){
+                    ef = atoi(optarg);
+                    strcpy(ef_char, optarg);
+                    ef_str = ef_char;
+                }
+                break;
+            case 'm': 
+                if(optarg){
+                    M = atoi(optarg);
+                    strcpy(M_char, optarg);
+                    M_str = M_char;
+                }
+                break;
             case 'd':
-                if(optarg)method = atoi(optarg);
+                if(optarg){
+                    strcpy(data_str_char, optarg);
+                    data_str = data_str_char;
+                }
+                break;
+            case 'r':
+                if(optarg){
+                    strcpy(recall_char, optarg);
+                    recall = atof(optarg);
+                    recall_str = recall_char;
+                }
+                break;
+            case 's':
+                if(optarg){
+                    strcpy(shuf_char, optarg);
+                    shuf_str = shuf_char;
+                }
                 break;
         }
     }
@@ -747,11 +780,11 @@ int main(int argc, char * argv[]) {
     string base_path_str = "../data";
     string result_base_path_str = "../results";
     
-    string exp_name = "perform_variance0.86";
+    string exp_name = "perform_variance" + recall_str;
     string index_postfix = "_plain";
     string query_postfix = "";
     // string index_postfix = "";
-    string shuf_postfix = "_shuf5";
+    string shuf_postfix = shuf_str;
     switch(method){
         case 0:
             break;
@@ -1158,13 +1191,25 @@ int main(int argc, char * argv[]) {
         cerr << "L2 space" << endl;
         cerr << "Read index from " << index_path << endl;
         auto appr_alg = new HierarchicalNSW<float>(&space, index_path, false);
+        appr_alg->num_deleted_ = 0;
         cerr << "max level: " << appr_alg->maxlevel_ << endl;
+        // vector<int>out_degree(appr_alg->max_elements_, 0);
+        // vector<int>in_degree(appr_alg->max_elements_, 0);
+        // appr_alg->getDegrees(out_degree, in_degree);
+        // // print the average out-degree
+        // double avg_out_degree = 0;
+        // for(int i = 0; i < appr_alg->max_elements_; ++i){
+        //     avg_out_degree += out_degree[i];
+        // }
+        // avg_out_degree /= appr_alg->max_elements_;
+        // cerr << "avg out degree: " << avg_out_degree << endl;
+        // exit(0);
         
         vector<std::priority_queue<std::pair<float, labeltype >>> answers;
         get_gt(G.data, Q.data, appr_alg->max_elements_, Q.n, space, Q.d, answers, k, subk, *appr_alg);
         // ProfilerStart("../prof/svd-profile.prof");
-        // test_vs_recall(Q.data, appr_alg->max_elements_, Q.n, *appr_alg, Q.d, answers, subk, method);
-        test_performance(Q.data, appr_alg->max_elements_, Q.n, *appr_alg, Q.d, answers, subk, method);
+        test_vs_recall(Q.data, appr_alg->max_elements_, Q.n, *appr_alg, Q.d, answers, subk, method);
+        // test_performance(Q.data, appr_alg->max_elements_, Q.n, *appr_alg, Q.d, answers, subk, method, recall);
         // test_lb_recall(Q.data, appr_alg->max_elements_, Q.n, *appr_alg, Q.d, answers, subk, method);
         // ProfilerStop();
 

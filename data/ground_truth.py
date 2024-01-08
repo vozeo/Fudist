@@ -6,7 +6,7 @@ import os
 import numpy as np
 from utils import *
 source = './data/'
-datasets = ['']
+datasets = ['deep']
 
 if __name__ == '__main__':
     for dataset in datasets:
@@ -14,7 +14,8 @@ if __name__ == '__main__':
             # path
         path = os.path.join(source, dataset)
         data_path = os.path.join(path, f'{dataset}_base.fvecs')
-        query_path = os.path.join(path, f'{dataset}_query.fvecs')
+        # query_path = os.path.join(path, f'{dataset}_query.fvecs')
+        query_path = os.path.join(path, f'{dataset}_benchmark.fvecs')
         # data_path = os.path.join(path, f'{dataset}_base.fbin')
         # data_path = os.path.join(path, f'{dataset}_sample_query_smallest.fbin')
         # query_path = os.path.join(path, f'{dataset}_query.fbin')
@@ -31,16 +32,24 @@ if __name__ == '__main__':
         # # read data vectors
         print(f"Reading {dataset} from {query_path}.")
         Q = read_fvecs(query_path)
+        # Q = X[:10, :]
         # Q = read_fbin(query_path)[:2000]
         # norms = np.linalg.norm(Q, axis=1)
         QD = Q.shape[1]
         print(Q.shape)
         # Q = L2_norm_dataset(Q)
         
-        K = 100000
+        K = 20000
         
         GT_I, GT_D = compute_GT_CPU(X, Q, K)
         print(GT_I.shape)
+        # real_gt = read_ivecs_cnt(os.path.join(path, f'{dataset}_self_groundtruth_10000.ivecs'), 10)
+        # real_gt_distance = np.zeros((real_gt.shape[0], real_gt.shape[1]))
+        # for i in range(real_gt.shape[0]):
+        #     for j in range(real_gt.shape[1]):
+        #         real_gt_distance[i][j] = euclidean_distance(X[i] , X[real_gt[i][j]])
+        # pprint(np.where(GT_I != real_gt))
+        # exit(0)
         
         # gt = read_ibin(os.path.join(path, f'groundtruth.img_0.1M.text_0.2k.ibin'))
         # for i in range(gt.shape[0]):
@@ -54,10 +63,13 @@ if __name__ == '__main__':
         #     # overlap = overlap_raw[0]
         #     if len(overlap) < 100:
         #         print(i, len(overlap))
-        # gt_path = os.path.join(path, f'{dataset}_groundtruth.ivecs')
-        # gt_d_path = os.path.join(path, f'{dataset}_groundtruth_dist.fvecs')
-        gt_path = os.path.join(path, f'{dataset}_groundtruth_{K}.ivecs')
-        gt_d_path = os.path.join(path, f'{dataset}_groundtruth_dist_{K}.fvecs')
+        # gt_path = os.path.join(path, f'{dataset}_benchmark_groundtruth.ivecs')
+        # gt_d_path = os.path.join(path, f'{dataset}_benchmark_groundtruth_dist.fvecs')
+        gt_path = os.path.join(path, f'{dataset}_benchmark_groundtruth_{K}.ivecs')
+        gt_d_path = os.path.join(path, f'{dataset}_benchmark_groundtruth_dist_{K}.fvecs')
+
+        # gt_path = os.path.join(path, f'{dataset}_groundtruth_{K}.ivecs_50000')
+        # gt_d_path = os.path.join(path, f'{dataset}_groundtruth_dist_{K}.fvecs')
 
         # gt_path_bin = os.path.join(path, f'{dataset}_groundtruth.ibin')
         # gt_d_path_bin = os.path.join(path, f'{dataset}_groundtruth_dist.fbin')
